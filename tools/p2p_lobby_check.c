@@ -87,6 +87,11 @@ void p2p_signal_lobby_publish(const unsigned char *listing, int size, int closin
 	publish_count++;
 }
 void p2p_signal_lobby_quit(void) {}
+/* (master_list.c: the server browser's OpenCE master servers, followed while
+browsing) */
+static int masters_browsing, masters_refreshed;
+void master_list_browse(int on) { masters_browsing = on; }
+void master_list_refresh(void) { masters_refreshed++; }
 
 /* the p2p thread's calls: under p2p_lock, as there (p2p_lobby_update lets
 go of it while it checks signatures) */
@@ -265,6 +270,9 @@ static void lobby_checks(void)
 	first_size = published_size;
 	/* the browser takes it */
 	p2p_lobby_browse(1);
+	check(masters_browsing, "browsing asks the master servers too");
+	p2p_lobby_refresh();
+	check(masters_refreshed == 1, "Refresh asks the master servers again");
 	hear(first, first_size, 0, NULL);
 	count = games(&listing);
 	check(count == 1, "the browser takes the listing");
@@ -393,6 +401,34 @@ static void lobby_checks(void)
 		signed_again[9] = (unsigned char)(signed_again[9] + 1);
 		hear(signed_again, published_size, 0, NULL);
 		check(games(&listing) == 1 && listing.version == newer, "a tampered one of another version is ignored");
+	}
+	/* a listing an OpenCE master server lists (its dedicated servers are not
+	on the brokers): checked as the brokers' are, and marked dedicated on the
+	master's word */
+	{
+		unsigned char fresh[512], changed[512];
+
+		clock_now += 91000;
+		lobby_update(token, 3, 16);
+		check(games(NULL) == 0, "the games expired before the master's");
+		restamp(published, published_size, 0, fresh);
+		check(p2p_lobby_take_master_listing(fresh, published_size, 1) == 1, "a master's listing is taken");
+		check(games(&listing) == 1 && listing.dedicated && !strcmp(listing.invite, expected_invite),
+			"a master's listing: a dedicated server's, joined by its host's invite");
+		memcpy(changed, fresh, (size_t)published_size);
+		changed[66] = 'X';
+		changed[9] = (unsigned char)(changed[9] + 70);
+		check(p2p_lobby_take_master_listing(changed, published_size, 1) == 0 && games(&listing) == 1 &&
+			listing.name[0] == 'T', "a master's tampered listing is ignored");
+		restamp(published, published_size, -2 * 3600, changed);
+		clock_now += 91000;
+		lobby_update(token, 3, 16);
+		check(p2p_lobby_take_master_listing(changed, published_size, 1) == 0 && games(NULL) == 0,
+			"a master's listing of long ago is ignored");
+		check(p2p_lobby_take_master_listing(fresh, 20, 1) == 0, "a master's listing too short is ignored");
+		p2p_lobby_browse(0);
+		check(!masters_browsing, "the master servers are left with the browser");
+		check(p2p_lobby_take_master_listing(fresh, published_size, 1) == 0, "no master's listing taken unless browsing");
 	}
 }
 

@@ -27,6 +27,13 @@ headers is not NULL */
 int posix_browser_send(const char *url, const char *body, size_t body_length, const char *content_type,
 	const char *headers, char *response, int response_size, char *error, int error_size);
 
+/* a GET of url, as posix_browser_request's, that also gives the response's
+status line and header lines ("Name: value\r\n" each) in response_headers,
+cut to response_headers_size - 1 bytes. A response_size larger than the
+usual 64 KB is read whole (a master server's list) */
+int posix_browser_get_with_headers(const char *url, char *response, int response_size, char *response_headers,
+	int response_headers_size, char *error, int error_size);
+
 /* a download (a GET of url, http:// or https://, redirects followed, as
 user_agent) opened: its handle (1), with the body's length in *length (-1
 when the server does not say); else 0, with the HTTP status in *status (0

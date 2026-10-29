@@ -820,7 +820,7 @@ static const struct config_setting config_settings[] =
 	{ "network.brokers_file", _config_string, "\"brokers.txt\"",
 		"HALO_NET_BROKERS_FILE", _environment_value, _platform_all | _platform_xbox,
 		"The file of MQTT brokers that connect invites, one host:port per line,\n"
-		"up to 4. Updates replace brokers.txt, so keep your own under another\n"
+		"up to 5. Updates replace brokers.txt, so keep your own under another\n"
 		"name." },
 	{ "network.stun_servers", _config_string, "\"stun.l.google.com:19302,stun.cloudflare.com:3478\"",
 		"HALO_NET_STUN", _environment_value, _platform_all | _platform_xbox,
@@ -833,6 +833,15 @@ static const struct config_setting config_settings[] =
 	{ "network.browser_url", _config_string, "\"https://stats.chupathingy.org\"", "HALO_NET_BROWSER", _environment_value,
 		_platform_all,
 		"The game list server; empty for none." },
+	{ "network.master_servers", _config_boolean, "true", "HALO_NET_MASTER_SERVERS", _environment_value, _platform_all,
+		"Also list the games of OpenCE's master servers (its dedicated servers,\n"
+		"which are not on the brokers) in the server browser." },
+	{ "network.masters_file", _config_string, "\"masters.txt\"", "HALO_NET_MASTERS_FILE", _environment_value,
+		_platform_all,
+		"The file of OpenCE master servers to ask, beside this file unless a\n"
+		"full path: an https:// URL and its key (ed25519:<hex>) on each line,\n"
+		"up to 4. None named (no file, or comments alone): OpenCE's official\n"
+		"master, built in." },
 	{ "network.list_hosted_games", _config_boolean, "true", "HALO_NET_LIST_GAMES", _environment_value, _platform_all,
 		"List public games you host without a password on the game list, and\n"
 		"send their carnage reports." },

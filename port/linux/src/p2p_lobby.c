@@ -63,6 +63,7 @@ of MAXIMUM_QUEUED; the rest is dropped (hosts publish again).
 #include "p2p_internal.h"
 #include "halo_port_limits.h"
 #include "delta_compat.h"
+#include "master_list.h"
 
 #include <stdio.h>
 #include <stdlib.h>
@@ -914,14 +915,73 @@ void p2p_lobby_browse(int on)
 		p2p_signal_lobby_topics(lobby.listed, on);
 	}
 	pthread_mutex_unlock(&p2p_lock);
+	/* (OpenCE's master servers too, while browsing: its dedicated servers
+	list there, not on the brokers. Not under the lock: their thread takes
+	it to give its games) */
+	master_list_browse(on);
 }
 
 void p2p_lobby_refresh(void)
 {
+	int browsing;
+
 	pthread_mutex_lock(&p2p_lock);
+	browsing = lobby.browsing;
 	if (lobby.browsing)
 		lobby.query_wanted = 1;
 	pthread_mutex_unlock(&p2p_lock);
+	if (browsing)
+		master_list_refresh();
+}
+
+int p2p_lobby_take_master_listing(const unsigned char *payload, int size, int dedicated)
+{
+	struct listing listing;
+	struct queued queued;
+	struct game *game;
+	int taken = 0;
+
+	/* (checked as a listing heard on the brokers is, without the lock: the
+	signature is the host's, so a master can't list what the host did not
+	sign) */
+	if (size < MINIMUM_LISTING_SIZE || size > MAXIMUM_LISTING_SIZE || !listing_read(payload, size, &listing) ||
+		(listing.flags & _listing_closed) || !signing_key_hash(listing.key, queued.key_hash))
+	{
+		return 0;
+	}
+	{
+		long difference = (long)(listing.time - (unsigned long)time(NULL));
+
+		if (difference > LIVE_WINDOW || difference < -LIVE_WINDOW)
+			return 0;
+	}
+	if (!listing_signed(payload, &listing))
+		return 0;
+	memcpy(queued.payload, payload, (size_t)size);
+	queued.size = size;
+	queued.retained = 0;
+	pthread_mutex_lock(&p2p_lock);
+	if (lobby.browsing)
+	{
+		game = find_game(queued.key_hash);
+		/* (the same listing again: heard; a newer one: taken, as the
+		brokers' are) */
+		if (game && game->payload_size == size && !memcmp(game->payload, payload, (size_t)size))
+			game->heard_time = p2p_now();
+		else
+			listing_take(&queued, &listing);
+		game = find_game(queued.key_hash);
+		if (game)
+		{
+			/* (the master's word that it is a dedicated server's, beside
+			the listing's own flags) */
+			if (dedicated)
+				game->listing.dedicated = 1;
+			taken = 1;
+		}
+	}
+	pthread_mutex_unlock(&p2p_lock);
+	return taken;
 }
 
 int p2p_lobby_browsing(void)
