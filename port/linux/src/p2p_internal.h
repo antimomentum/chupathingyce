@@ -309,6 +309,10 @@ written to the brokers at once; under p2p_lock */
 void p2p_lobby_quit(void);
 /* a key hash's slot */
 void p2p_lobby_slot_topic(const unsigned char *key_hash, char *topic, int size);
+/* a listing an OpenCE master server lists (master_list.c's thread; not under
+p2p_lock): checked as one heard on the brokers is, and taken while browsing,
+marked a dedicated server's if the master says so; 1 if the game is listed */
+int p2p_lobby_take_master_listing(const unsigned char *payload, int size, int dedicated);
 
 /* ---------- p2p_discord.c: rich presence and invites through the Discord
 desktop client */

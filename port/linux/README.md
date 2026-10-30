@@ -639,10 +639,12 @@ the setting for one start of the game. It has priority over the file.
 | `network.coop_enemies` | `50` | `HALO_NET_COOP_ENEMIES` | The extra enemies per player, a percentage from `25` to `200`: for each player past the first, each squad of enemies gets this much of itself more (`100`: as many again, so four players meet four times the squad), up to 8 times the squad however many players there are. PER PLAYER in co-op's Server Setup writes its choice here. |
 | `network.coop_enemies_multiplier` | `2` | `HALO_NET_COOP_ENEMIES_MULTIPLIER` | The static multiplier of the enemies, `2` to `32`: each squad of enemies is this many times as large. MULTIPLIER in co-op's Server Setup writes its choice here. |
 | `network.coop_public` | `false` | `HALO_NET_COOP_PUBLIC` | `true`: an online co-op game (Create Game > Internet, a SINGLEPLAYER map) starts as PUBLIC. `false`: it starts as PRIVATE. LISTING in co-op's Server Setup writes its choice here. Refer to "Server browser". |
-| `network.brokers_file` | `"brokers.txt"` | `HALO_NET_BROKERS_FILE` | The file of the public MQTT brokers that let the machines of an invite find each other, and that carry the listings of the server browser: next to `config.toml`, unless a full path. One `host:port` on each line, up to 4; `#` starts a comment. |
+| `network.brokers_file` | `"brokers.txt"` | `HALO_NET_BROKERS_FILE` | The file of the public MQTT brokers that let the machines of an invite find each other, and that carry the listings of the server browser: next to `config.toml`, unless a full path. One `host:port` on each line, up to 5; `#` starts a comment. |
 | `network.stun_servers` | Google and Cloudflare | `HALO_NET_STUN` | The public STUN servers (`host:port`, with commas between them) that give the internet address of a machine. |
 | `network.announce` | `"latest"` | `HALO_NET_ANNOUNCE` | The OpenCE network version that the games you host announce. `"latest"` follows the newest one the signed legacy table proves for hosting, between games and with no restart. A number pins it, such as `32`. Refer to `docs/delta.md`, "Auto-announce". |
 | `network.legacy_table` | `""` | `HALO_LEGACY_TABLE` | For testing, and for admins: a legacy table file, not signed, next to `config.toml` unless a full path. Its row for the wire of the build sets the OpenCE network versions that the game announces and joins, in place of the signed tables. The log shows a warning at start. Refer to `docs/delta.md`. Empty: none. |
+| `network.master_servers` | `true` | `HALO_NET_MASTER_SERVERS` | Builds with the game list. `true`: while the server browser is open, the game also asks OpenCE's master servers (`network.masters_file`) for their lists, and shows their games (OpenCE's dedicated servers, which are not listed on the brokers). Each list's signature is checked against the master's pinned key, and each game's listing against its host's key, as the brokers' are. A game the game list (`network.browser_url`) also has shows once. `false`: the brokers and `network.browser_url` alone. |
+| `network.masters_file` | `"masters.txt"` | `HALO_NET_MASTERS_FILE` | The OpenCE master servers to ask, next to `config.toml` unless a full path: `https://host ed25519:<64 hex digits>` on each line, up to 4; `#` starts a comment. With no file, or one naming none, OpenCE's official master (`https://master.opencommunityedition.com`) is asked. |
 | `network.list_hosted_games` | `true` | `HALO_NET_LIST_GAMES` | `true`: the system link games this machine hosts are listed on `network.browser_url` (stats.chupathingy.org), where anyone can find and join them. Only public games without a password are listed. `false`: they are kept to invites and the local network, and no carnage report of them is sent. |
 | `network.report_hosted_games` | `true` | `HALO_NET_REPORT_HOSTED` | The stats of the games this machine hosts: a listed game's carnage report, its Delta Stats (`network.report_events`) and the host's own players' claims of their lines. `false`: none of them are sent, and the game stays listed (`network.list_hosted_games`). On the Privacy screen (Gearbox menus). |
 | `network.report_joined_games` | `true` | `HALO_NET_REPORT_GAMES` | When an internet game this machine joined ends, the game sends `network.browser_url` its scores as this machine saw them, with this copy's player ID, and confirms this machine's players' lines in the host's report of the game (`POST /v1/claim`), which puts the game on their profiles. `false`: neither, for games this machine joins. Games it hosts are still reported and confirmed (unless `network.report_hosted_games` is off). On the Privacy screen (Gearbox menus). |
@@ -954,7 +956,7 @@ as for any public server.
 The brokers are in `brokers.txt` next to the executable (from
 `port/assets/network/brokers.txt`; on Android, the app writes it next to
 `config.toml` at each start), one `host:port` on each line. The game uses
-all of them at once (up to 4), so one that works is enough. Without the
+all of them at once (up to 5), so one that works is enough. Without the
 file (the dedicated server's container, the macOS application, whose
 `config.toml` is in Application Support), the game uses its own copy of the
 list. An update replaces `brokers.txt`: to use brokers of your own, put them in another
@@ -970,6 +972,13 @@ ChupathingyCE's own parts of the server browser:
   internet game too, and public as `network.host_public` says, so it shows
   in the Server Browser of OpenCE and ChupathingyCE. The dedicated server
   (`server/`) is public unless `HALO_DEDICATED_PUBLIC=false`.
+- Builds with the game list also show the games of OpenCE's master servers
+  (`network.master_servers`, `network.masters_file`): OpenCE's dedicated
+  servers list there rather than on the brokers. While the Server Browser
+  is open, each master is asked for its list (`GET /v1/servers`) every 30
+  seconds and on Refresh; a list whose signature does not check with the
+  master's key is refused, and each game in it is checked as a listing
+  heard on the brokers is. Such a game is joined by its invite, as any.
 - Builds with the game list (`configure.py --game-browser`) also show the
   games of `network.browser_url` (stats.chupathingy.org). While the Server
   Browser is open, the game reads the list with an HTTPS GET of

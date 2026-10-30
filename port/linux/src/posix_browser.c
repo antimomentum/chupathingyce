@@ -383,7 +383,8 @@ int posix_browser_request(const char *url, const char *form, const char *content
 }
 
 static int request_as(const char *url, const char *body_data, size_t body_length, const char *content_type,
-	const char *user_agent, const char *headers, char *response, int response_size, char *error, int error_size);
+	const char *user_agent, const char *headers, char *response, int response_size, char *response_headers,
+	int response_headers_size, char *error, int error_size);
 
 /* (one user of Mbed TLS at a time across the program's threads: as it is
 built here it has no locks of its own, and its PSA random generator, key
@@ -421,8 +422,8 @@ static int locked_request(const char *url, const char *body_data, size_t body_le
 	int status;
 
 	posix_browser_lock();
-	status = request_as(url, body_data, body_length, content_type, user_agent, headers, response, response_size, error,
-		error_size);
+	status = request_as(url, body_data, body_length, content_type, user_agent, headers, response, response_size, NULL, 0,
+		error, error_size);
 	posix_browser_unlock();
 	return status;
 }
@@ -441,8 +442,21 @@ int posix_browser_send(const char *url, const char *body_data, size_t body_lengt
 		response_size, error, error_size);
 }
 
+int posix_browser_get_with_headers(const char *url, char *response, int response_size, char *response_headers,
+	int response_headers_size, char *error, int error_size)
+{
+	int status;
+
+	posix_browser_lock();
+	status = request_as(url, NULL, 0, NULL, BROWSER_USER_AGENT, NULL, response, response_size, response_headers,
+		response_headers_size, error, error_size);
+	posix_browser_unlock();
+	return status;
+}
+
 static int request_as(const char *url, const char *body_data, size_t body_length, const char *content_type,
-	const char *user_agent, const char *headers, char *response, int response_size, char *error, int error_size)
+	const char *user_agent, const char *headers, char *response, int response_size, char *response_headers,
+	int response_headers_size, char *error, int error_size)
 {
 	char host[256], port[16], path[512];
 	char request[4096];
@@ -458,6 +472,12 @@ static int request_as(const char *url, const char *body_data, size_t body_length
 	error[0] = 0;
 	if (response_size > 0)
 		response[0] = 0;
+	if (response_headers_size > 0)
+		response_headers[0] = 0;
+	/* (room for the whole answer when the caller wants more than the usual:
+	a master server's list) */
+	if ((size_t)response_size + (size_t)(response_headers_size > 0 ? response_headers_size : 0) > capacity)
+		capacity = (size_t)response_size + (size_t)(response_headers_size > 0 ? response_headers_size : 0);
 	if (!parse_url(url, &secure, host, sizeof(host), port, sizeof(port), path, sizeof(path)))
 	{
 		set_error(error, error_size, "not an http:// or https:// address", 0);
@@ -544,9 +564,14 @@ static int request_as(const char *url, const char *body_data, size_t body_length
 				status = 0;
 				set_error(error, error_size, "not an HTTP response", 0);
 			}
-			else if ((body = strstr(buffer, "\r\n\r\n")) != NULL && response_size > 0)
+			else if ((body = strstr(buffer, "\r\n\r\n")) != NULL)
 			{
-				snprintf(response, (size_t)response_size, "%s", body + 4);
+				if (response_size > 0)
+					snprintf(response, (size_t)response_size, "%s", body + 4);
+				/* (the status line and the header lines, for a caller that
+				reads them: a signature's) */
+				if (response_headers_size > 0)
+					snprintf(response_headers, (size_t)response_headers_size, "%.*s", (int)(body + 2 - buffer), buffer);
 			}
 		}
 	}
